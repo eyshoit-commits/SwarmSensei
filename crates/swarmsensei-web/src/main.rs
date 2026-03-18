@@ -38,7 +38,9 @@ fn app() -> Html {
     let filtered_tasks = scenario
         .tasks
         .iter()
-        .filter(|task| lane_filter.as_str() == "All" || task.lane == lane_filter.as_str())
+        .filter(|task| {
+            lane_filter.as_str() == "All" || task.lane.short_label() == lane_filter.as_str()
+        })
         .cloned()
         .collect::<Vec<_>>();
 
@@ -55,14 +57,14 @@ fn app() -> Html {
             <header class="hero">
                 <div>
                     <p class="eyebrow">{"Rust + WASM + shared orchestration core"}</p>
-                    <h1>{scenario.headline}</h1>
-                    <p class="lede">{scenario.summary}</p>
+                    <h1>{scenario.headline.as_str()}</h1>
+                    <p class="lede">{scenario.summary.as_str()}</p>
                 </div>
                 <div class="hero-card">
                     <p class="muted">{"Active model"}</p>
-                    <strong>{scenario.active_model}</strong>
+                    <strong>{scenario.active_model.to_string()}</strong>
                     <p class="muted top-gap">{"Execution mode"}</p>
-                    <strong>{scenario.team_mode}</strong>
+                    <strong>{scenario.team_mode.as_str()}</strong>
                 </div>
             </header>
 
@@ -83,13 +85,13 @@ fn app() -> Html {
                         {for scenario.agents.iter().map(|agent| html! {
                             <article class="agent-card">
                                 <div>
-                                    <h3>{agent.name}</h3>
-                                    <p>{agent.specialty}</p>
+                                    <h3>{agent.name.as_str()}</h3>
+                                    <p>{agent.specialty.as_str()}</p>
                                 </div>
                                 <div class="agent-meta">
                                     <span class={thinking_chip(agent.thinking)}>{agent.thinking.label()}</span>
-                                    <span class="model-pill">{agent.model}</span>
-                                    <span class="muted">{agent.status}</span>
+                                    <span class="model-pill">{agent.model.to_string()}</span>
+                                    <span class="muted">{agent.state.label()}</span>
                                 </div>
                             </article>
                         })}
@@ -118,8 +120,8 @@ fn app() -> Html {
                         {for filtered_tasks.iter().map(|task| html! {
                             <article class="task-row">
                                 <div>
-                                    <h3>{task.title}</h3>
-                                    <p class="muted">{format!("Owner: {} · Lane: {}", task.owner, task.lane)}</p>
+                                    <h3>{task.title.as_str()}</h3>
+                                    <p class="muted">{format!("Owner: {} · Lane: {}", scenario.agent_name(&task.owner), task.lane.short_label())}</p>
                                 </div>
                                 <span class={badge_class(task.status)}>{task.status.label()}</span>
                             </article>
@@ -172,19 +174,19 @@ fn app() -> Html {
                         <h3>{"Policy rules"}</h3>
                         {for scenario.rules.iter().map(|rule| html! {
                             <div class="rule-row">
-                                <strong>{rule.name}</strong>
-                                <p>{format!("{} — {}", rule.scope, rule.effect)}</p>
+                                <strong>{rule.name.clone()}</strong>
+                                <p>{format!("{} — {}", rule.scope, rule.detail)}</p>
                             </div>
                         })}
                     </div>
                     <div class="subsection">
                         <h3>{"Memory graph"}</h3>
-                        {for scenario.memory.iter().map(|entry| html! {
+                        {for scenario.memory_timeline().iter().map(|entry| html! {
                             <div class="memory-row">
-                                <span class="memory-kind">{entry.kind}</span>
+                                <span class="memory-kind">{entry.kind_label()}</span>
                                 <div>
-                                    <strong>{entry.branch}</strong>
-                                    <p>{entry.summary}</p>
+                                    <strong>{entry.branch_label()}</strong>
+                                    <p>{entry.summary()}</p>
                                 </div>
                             </div>
                         })}
@@ -198,9 +200,9 @@ fn app() -> Html {
 fn render_source(source: &SourceFeature) -> Html {
     html! {
         <article class="source-card">
-            <p class="eyebrow small">{source.source}</p>
-            <h3>{source.feature}</h3>
-            <p>{source.outcome}</p>
+            <p class="eyebrow small">{source.source.as_str()}</p>
+            <h3>{source.feature.as_str()}</h3>
+            <p>{source.outcome.as_str()}</p>
         </article>
     }
 }
