@@ -55,14 +55,14 @@ fn app() -> Html {
             <header class="hero">
                 <div>
                     <p class="eyebrow">{"Rust + WASM + shared orchestration core"}</p>
-                    <h1>{scenario.headline}</h1>
-                    <p class="lede">{scenario.summary}</p>
+                    <h1>{scenario.headline.clone()}</h1>
+                    <p class="lede">{scenario.summary.clone()}</p>
                 </div>
                 <div class="hero-card">
                     <p class="muted">{"Active model"}</p>
-                    <strong>{scenario.active_model}</strong>
+                    <strong>{scenario.active_model.clone()}</strong>
                     <p class="muted top-gap">{"Execution mode"}</p>
-                    <strong>{scenario.team_mode}</strong>
+                    <strong>{scenario.team_mode.clone()}</strong>
                 </div>
             </header>
 
@@ -83,13 +83,13 @@ fn app() -> Html {
                         {for scenario.agents.iter().map(|agent| html! {
                             <article class="agent-card">
                                 <div>
-                                    <h3>{agent.name}</h3>
-                                    <p>{agent.specialty}</p>
+                                    <h3>{agent.name.clone()}</h3>
+                                    <p>{agent.specialty.clone()}</p>
                                 </div>
                                 <div class="agent-meta">
                                     <span class={thinking_chip(agent.thinking)}>{agent.thinking.label()}</span>
-                                    <span class="model-pill">{agent.model}</span>
-                                    <span class="muted">{agent.status}</span>
+                                    <span class="model-pill">{agent.model.clone()}</span>
+                                    <span class="muted">{agent.status.clone()}</span>
                                 </div>
                             </article>
                         })}
@@ -118,7 +118,7 @@ fn app() -> Html {
                         {for filtered_tasks.iter().map(|task| html! {
                             <article class="task-row">
                                 <div>
-                                    <h3>{task.title}</h3>
+                                    <h3>{task.title.clone()}</h3>
                                     <p class="muted">{format!("Owner: {} · Lane: {}", task.owner, task.lane)}</p>
                                 </div>
                                 <span class={badge_class(task.status)}>{task.status.label()}</span>
@@ -144,8 +144,6 @@ fn app() -> Html {
                             CapabilityArea::HumanLoop,
                             CapabilityArea::Memory,
                             CapabilityArea::Workflow,
-                            CapabilityArea::Interface,
-                            CapabilityArea::CodingHarness,
                         ].into_iter().map(|area| {
                             let active_area = active_area.clone();
                             let is_active = *active_area == area;
@@ -172,7 +170,7 @@ fn app() -> Html {
                         <h3>{"Policy rules"}</h3>
                         {for scenario.rules.iter().map(|rule| html! {
                             <div class="rule-row">
-                                <strong>{rule.name}</strong>
+                                <strong>{rule.name.clone()}</strong>
                                 <p>{format!("{} — {}", rule.scope, rule.effect)}</p>
                             </div>
                         })}
@@ -181,10 +179,10 @@ fn app() -> Html {
                         <h3>{"Memory graph"}</h3>
                         {for scenario.memory.iter().map(|entry| html! {
                             <div class="memory-row">
-                                <span class="memory-kind">{entry.kind}</span>
+                                <span class="memory-kind">{entry.kind.clone()}</span>
                                 <div>
-                                    <strong>{entry.branch}</strong>
-                                    <p>{entry.summary}</p>
+                                    <strong>{entry.branch.clone()}</strong>
+                                    <p>{entry.summary.clone()}</p>
                                 </div>
                             </div>
                         })}
@@ -198,9 +196,9 @@ fn app() -> Html {
 fn render_source(source: &SourceFeature) -> Html {
     html! {
         <article class="source-card">
-            <p class="eyebrow small">{source.source}</p>
-            <h3>{source.feature}</h3>
-            <p>{source.outcome}</p>
+            <p class="eyebrow small">{source.source.clone()}</p>
+            <h3>{source.feature.clone()}</h3>
+            <p>{source.outcome.clone()}</p>
         </article>
     }
 }
