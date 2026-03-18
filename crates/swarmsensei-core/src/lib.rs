@@ -10,6 +10,14 @@ pub enum TaskStatus {
 }
 
 impl TaskStatus {
+    pub const ALL: [Self; 5] = [
+        Self::Todo,
+        Self::InProgress,
+        Self::Review,
+        Self::Blocked,
+        Self::Done,
+    ];
+
     pub fn label(self) -> &'static str {
         match self {
             Self::Todo => "Todo",
@@ -55,6 +63,19 @@ pub enum CapabilityArea {
 }
 
 impl CapabilityArea {
+    pub const ALL: [Self; 10] = [
+        Self::Sandbox,
+        Self::Teaming,
+        Self::Models,
+        Self::Swarm,
+        Self::Governance,
+        Self::HumanLoop,
+        Self::Memory,
+        Self::Workflow,
+        Self::Interface,
+        Self::CodingHarness,
+    ];
+
     pub fn label(self) -> &'static str {
         match self {
             Self::Sandbox => "Secure sandboxes",
@@ -71,56 +92,140 @@ impl CapabilityArea {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MemoryKind {
+    Commit,
+    Branch,
+    Merge,
+}
+
+impl MemoryKind {
+    pub const ALL: [Self; 3] = [Self::Commit, Self::Branch, Self::Merge];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Commit => "commit",
+            Self::Branch => "branch",
+            Self::Merge => "merge",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ApprovalStatus {
+    Pending,
+    Accepted,
+    Rejected,
+}
+
+impl ApprovalStatus {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Pending => "Pending",
+            Self::Accepted => "Accepted",
+            Self::Rejected => "Rejected",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SwarmStatus {
+    Idle,
+    Running,
+    Stopped,
+}
+
+impl SwarmStatus {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Idle => "Idle",
+            Self::Running => "Running",
+            Self::Stopped => "Stopped",
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SourceFeature {
-    pub source: &'static str,
+    pub source: String,
     pub area: CapabilityArea,
-    pub feature: &'static str,
-    pub outcome: &'static str,
+    pub feature: String,
+    pub outcome: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AgentProfile {
-    pub name: &'static str,
-    pub specialty: &'static str,
-    pub model: &'static str,
+    pub name: String,
+    pub specialty: String,
+    pub model: String,
     pub thinking: ThinkingLevel,
-    pub status: &'static str,
+    pub status: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WorkItem {
-    pub title: &'static str,
-    pub owner: &'static str,
+    pub id: usize,
+    pub title: String,
+    pub owner: String,
     pub status: TaskStatus,
-    pub lane: &'static str,
+    pub lane: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PolicyRule {
-    pub name: &'static str,
-    pub effect: &'static str,
-    pub scope: &'static str,
+    pub name: String,
+    pub effect: String,
+    pub scope: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MemoryEntry {
-    pub branch: &'static str,
-    pub summary: &'static str,
-    pub kind: &'static str,
+    pub branch: String,
+    pub summary: String,
+    pub kind: MemoryKind,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ModelOption {
+    pub provider: String,
+    pub model: String,
+    pub capability: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ApprovalRequest {
+    pub id: usize,
+    pub title: String,
+    pub requested_by: String,
+    pub summary: String,
+    pub status: ApprovalStatus,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AuditEntry {
+    pub actor: String,
+    pub action: String,
+    pub detail: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Scenario {
-    pub headline: &'static str,
-    pub summary: &'static str,
-    pub active_model: &'static str,
-    pub team_mode: &'static str,
+    pub headline: String,
+    pub summary: String,
+    pub active_provider: String,
+    pub active_model: String,
+    pub team_mode: String,
+    pub swarm_status: SwarmStatus,
     pub agents: Vec<AgentProfile>,
     pub tasks: Vec<WorkItem>,
     pub rules: Vec<PolicyRule>,
     pub memory: Vec<MemoryEntry>,
+    pub approvals: Vec<ApprovalRequest>,
+    pub audit_log: Vec<AuditEntry>,
+    pub model_catalog: Vec<ModelOption>,
     pub sources: Vec<SourceFeature>,
+    next_task_id: usize,
+    next_approval_id: usize,
 }
 
 impl Scenario {
@@ -141,147 +246,330 @@ impl Scenario {
     pub fn governance_rules(&self) -> usize {
         self.rules.len()
     }
+
+    pub fn pending_approvals(&self) -> usize {
+        self.approvals
+            .iter()
+            .filter(|approval| approval.status == ApprovalStatus::Pending)
+            .count()
+    }
+
+    pub fn create_task(
+        &mut self,
+        title: impl Into<String>,
+        owner: impl Into<String>,
+        lane: impl Into<String>,
+    ) {
+        let title = title.into();
+        let owner = owner.into();
+        let lane = lane.into();
+        self.tasks.push(WorkItem {
+            id: self.next_task_id,
+            title: title.clone(),
+            owner: owner.clone(),
+            status: TaskStatus::Todo,
+            lane: lane.clone(),
+        });
+        self.next_task_id += 1;
+        self.record_audit(
+            "Lead",
+            "Created task",
+            format!("{title} assigned to {owner} in {lane}"),
+        );
+    }
+
+    pub fn assign_task(&mut self, id: usize, owner: impl Into<String>) {
+        let owner = owner.into();
+        let mut audit_detail = None;
+        if let Some(task) = self.tasks.iter_mut().find(|task| task.id == id) {
+            task.owner = owner.clone();
+            audit_detail = Some(format!("{} → {}", task.title, owner));
+        }
+        if let Some(detail) = audit_detail {
+            self.record_audit("Lead", "Assigned task", detail);
+        }
+    }
+
+    pub fn update_task_status(&mut self, id: usize, status: TaskStatus) {
+        let mut audit_detail = None;
+        if let Some(task) = self.tasks.iter_mut().find(|task| task.id == id) {
+            task.status = status;
+            audit_detail = Some(format!("{} is now {}", task.title, status.label()));
+        }
+        if let Some(detail) = audit_detail {
+            self.record_audit("Builder", "Changed task status", detail);
+        }
+    }
+
+    pub fn switch_model(&mut self, provider: impl Into<String>, model: impl Into<String>) {
+        self.active_provider = provider.into();
+        self.active_model = model.into();
+        self.record_audit(
+            "Router",
+            "Switched active model",
+            format!("{} / {}", self.active_provider, self.active_model),
+        );
+    }
+
+    pub fn open_approval_request(
+        &mut self,
+        title: impl Into<String>,
+        requested_by: impl Into<String>,
+        summary: impl Into<String>,
+    ) {
+        let title = title.into();
+        let requested_by = requested_by.into();
+        let summary = summary.into();
+        self.approvals.push(ApprovalRequest {
+            id: self.next_approval_id,
+            title: title.clone(),
+            requested_by: requested_by.clone(),
+            summary: summary.clone(),
+            status: ApprovalStatus::Pending,
+        });
+        self.next_approval_id += 1;
+        self.record_audit(
+            requested_by,
+            "Opened approval request",
+            format!("{title}: {summary}"),
+        );
+    }
+
+    pub fn decide_approval(&mut self, id: usize, accept: bool) {
+        let mut audit_title = None;
+        if let Some(approval) = self.approvals.iter_mut().find(|approval| approval.id == id) {
+            approval.status = if accept {
+                ApprovalStatus::Accepted
+            } else {
+                ApprovalStatus::Rejected
+            };
+            audit_title = Some(approval.title.clone());
+        }
+        if let Some(title) = audit_title {
+            self.record_audit(
+                "Human",
+                if accept {
+                    "Accepted approval"
+                } else {
+                    "Rejected approval"
+                },
+                title,
+            );
+        }
+    }
+
+    pub fn append_memory(
+        &mut self,
+        branch: impl Into<String>,
+        kind: MemoryKind,
+        summary: impl Into<String>,
+    ) {
+        let branch = branch.into();
+        let summary = summary.into();
+        self.memory.push(MemoryEntry {
+            branch: branch.clone(),
+            summary: summary.clone(),
+            kind,
+        });
+        self.record_audit(
+            "Archivist",
+            "Appended memory event",
+            format!("{} on {}: {}", kind.label(), branch, summary),
+        );
+    }
+
+    pub fn start_swarm_run(&mut self) {
+        self.swarm_status = SwarmStatus::Running;
+        self.record_audit("Operator", "Started swarm run", self.team_mode.clone());
+    }
+
+    pub fn stop_swarm_run(&mut self) {
+        self.swarm_status = SwarmStatus::Stopped;
+        self.record_audit("Operator", "Stopped swarm run", self.team_mode.clone());
+    }
+
+    fn record_audit(
+        &mut self,
+        actor: impl Into<String>,
+        action: impl Into<String>,
+        detail: impl Into<String>,
+    ) {
+        self.audit_log.insert(
+            0,
+            AuditEntry {
+                actor: actor.into(),
+                action: action.into(),
+                detail: detail.into(),
+            },
+        );
+    }
 }
 
 pub fn sample_scenario() -> Scenario {
     Scenario {
-        headline: "SwarmSensei Control Room",
-        summary: "A mono Rust/WASM control room that merges sandbox execution, multi-agent teaming, adaptive model switching, governance, human approvals, memory, and a rich web cockpit.",
-        active_model: "nvidia-nim/deepseek-ai/deepseek-v3.2",
-        team_mode: "Parallel swarm with human approval checkpoints",
+        headline: "SwarmSensei Control Room".into(),
+        summary: "A mono Rust/WASM control room that merges sandbox execution, multi-agent teaming, adaptive model switching, governance, human approvals, memory, and a rich web cockpit.".into(),
+        active_provider: "nvidia-nim".into(),
+        active_model: "deepseek-ai/deepseek-v3.2".into(),
+        team_mode: "Parallel swarm with human approval checkpoints".into(),
+        swarm_status: SwarmStatus::Running,
         agents: vec![
             AgentProfile {
-                name: "Lead",
-                specialty: "Roadmapping & approvals",
-                model: "openai/gpt-5",
+                name: "Lead".into(),
+                specialty: "Roadmapping & approvals".into(),
+                model: "openai/gpt-5".into(),
                 thinking: ThinkingLevel::High,
-                status: "Supervising",
+                status: "Supervising".into(),
             },
             AgentProfile {
-                name: "Scout",
-                specialty: "Discovery & dependency tracing",
-                model: "google/gemini-2.5-flash",
+                name: "Scout".into(),
+                specialty: "Discovery & dependency tracing".into(),
+                model: "google/gemini-2.5-flash".into(),
                 thinking: ThinkingLevel::Low,
-                status: "Mapping",
+                status: "Mapping".into(),
             },
             AgentProfile {
-                name: "Builder",
-                specialty: "Implementation",
-                model: "anthropic/claude-opus-4.5",
+                name: "Builder".into(),
+                specialty: "Implementation".into(),
+                model: "anthropic/claude-opus-4.5".into(),
                 thinking: ThinkingLevel::High,
-                status: "Coding",
+                status: "Coding".into(),
             },
             AgentProfile {
-                name: "Reviewer",
-                specialty: "Quality & governance",
-                model: "nvidia-nim/z-ai/glm5",
+                name: "Reviewer".into(),
+                specialty: "Quality & governance".into(),
+                model: "nvidia-nim/z-ai/glm5".into(),
                 thinking: ThinkingLevel::Medium,
-                status: "Auditing",
+                status: "Auditing".into(),
             },
             AgentProfile {
-                name: "Archivist",
-                specialty: "Memory synthesis",
-                model: "openai/gpt-5-mini",
+                name: "Archivist".into(),
+                specialty: "Memory synthesis".into(),
+                model: "openai/gpt-5-mini".into(),
                 thinking: ThinkingLevel::Medium,
-                status: "Committing",
+                status: "Committing".into(),
             },
             AgentProfile {
-                name: "Operator",
-                specialty: "Sandbox execution",
-                model: "google/gemini-2.5-flash",
+                name: "Operator".into(),
+                specialty: "Sandbox execution".into(),
+                model: "google/gemini-2.5-flash".into(),
                 thinking: ThinkingLevel::Off,
-                status: "Running",
+                status: "Running".into(),
             },
         ],
         tasks: vec![
-            WorkItem { title: "Spin up isolated Rust/WASM workspace", owner: "Operator", status: TaskStatus::Done, lane: "Sandbox" },
-            WorkItem { title: "Route heavy tasks to premium model", owner: "Lead", status: TaskStatus::InProgress, lane: "Models" },
-            WorkItem { title: "Scout parallel refactor candidates", owner: "Scout", status: TaskStatus::Review, lane: "Swarm" },
-            WorkItem { title: "Review DLP hits before export", owner: "Reviewer", status: TaskStatus::Blocked, lane: "Governance" },
-            WorkItem { title: "Checkpoint architecture decisions", owner: "Archivist", status: TaskStatus::Done, lane: "Memory" },
+            WorkItem { id: 1, title: "Spin up isolated Rust/WASM workspace".into(), owner: "Operator".into(), status: TaskStatus::Done, lane: "Sandbox".into() },
+            WorkItem { id: 2, title: "Route heavy tasks to premium model".into(), owner: "Lead".into(), status: TaskStatus::InProgress, lane: "Models".into() },
+            WorkItem { id: 3, title: "Scout parallel refactor candidates".into(), owner: "Scout".into(), status: TaskStatus::Review, lane: "Swarm".into() },
+            WorkItem { id: 4, title: "Review DLP hits before export".into(), owner: "Reviewer".into(), status: TaskStatus::Blocked, lane: "Governance".into() },
+            WorkItem { id: 5, title: "Checkpoint architecture decisions".into(), owner: "Archivist".into(), status: TaskStatus::Done, lane: "Memory".into() },
         ],
         rules: vec![
-            PolicyRule { name: "Block secret exfiltration", effect: "Mask tokens and deny suspicious outbound content", scope: "DLP" },
-            PolicyRule { name: "Require approval on destructive commands", effect: "Human review before file deletion or git push", scope: "HITL" },
-            PolicyRule { name: "Protect governance config", effect: "Agents cannot mutate policy files", scope: "RBAC" },
-            PolicyRule { name: "Verification gate", effect: "Commits require passing checks", scope: "Workflow" },
+            PolicyRule { name: "Block secret exfiltration".into(), effect: "Mask tokens and deny suspicious outbound content".into(), scope: "DLP".into() },
+            PolicyRule { name: "Require approval on destructive commands".into(), effect: "Human review before file deletion or git push".into(), scope: "HITL".into() },
+            PolicyRule { name: "Protect governance config".into(), effect: "Agents cannot mutate policy files".into(), scope: "RBAC".into() },
+            PolicyRule { name: "Verification gate".into(), effect: "Commits require passing checks".into(), scope: "Workflow".into() },
         ],
         memory: vec![
-            MemoryEntry { branch: "main", kind: "commit", summary: "Initialized workspace and captured upstream feature map." },
-            MemoryEntry { branch: "research/model-routing", kind: "branch", summary: "Explored provider-specific model switching and NIM thinking modes." },
-            MemoryEntry { branch: "main", kind: "merge", summary: "Merged governance, human-loop, and ant-colony orchestration into the shared control plane." },
+            MemoryEntry { branch: "main".into(), kind: MemoryKind::Commit, summary: "Initialized workspace and captured upstream feature map.".into() },
+            MemoryEntry { branch: "research/model-routing".into(), kind: MemoryKind::Branch, summary: "Explored provider-specific model switching and NIM thinking modes.".into() },
+            MemoryEntry { branch: "main".into(), kind: MemoryKind::Merge, summary: "Merged governance, human-loop, and ant-colony orchestration into the shared control plane.".into() },
+        ],
+        approvals: vec![
+            ApprovalRequest {
+                id: 1,
+                title: "Approve audit export".into(),
+                requested_by: "Reviewer".into(),
+                summary: "Share the latest governance findings with stakeholders.".into(),
+                status: ApprovalStatus::Pending,
+            },
+        ],
+        audit_log: vec![
+            AuditEntry { actor: "Operator".into(), action: "Started swarm run".into(), detail: "Parallel swarm with human approval checkpoints".into() },
+            AuditEntry { actor: "Router".into(), action: "Switched active model".into(), detail: "nvidia-nim / deepseek-ai/deepseek-v3.2".into() },
+            AuditEntry { actor: "Reviewer".into(), action: "Opened approval request".into(), detail: "Approve audit export: Share the latest governance findings with stakeholders.".into() },
+        ],
+        model_catalog: vec![
+            ModelOption { provider: "openai".into(), model: "gpt-5".into(), capability: "Deep planning and approvals".into() },
+            ModelOption { provider: "openai".into(), model: "gpt-5-mini".into(), capability: "Cheap memory synthesis".into() },
+            ModelOption { provider: "anthropic".into(), model: "claude-opus-4.5".into(), capability: "High-context implementation".into() },
+            ModelOption { provider: "google".into(), model: "gemini-2.5-flash".into(), capability: "Fast scouting and execution".into() },
+            ModelOption { provider: "nvidia-nim".into(), model: "deepseek-ai/deepseek-v3.2".into(), capability: "Reasoning with NIM routing".into() },
+            ModelOption { provider: "nvidia-nim".into(), model: "z-ai/glm5".into(), capability: "Governance review and verification".into() },
         ],
         sources: source_features(),
+        next_task_id: 6,
+        next_approval_id: 2,
     }
 }
 
 pub fn source_features() -> Vec<SourceFeature> {
     vec![
         SourceFeature {
-            source: "agentkernel",
+            source: "agentkernel".into(),
             area: CapabilityArea::Sandbox,
-            feature: "MicroVM-style isolated command execution",
-            outcome: "Safe task runs with receipts and runtime auto-detection",
+            feature: "MicroVM-style isolated command execution".into(),
+            outcome: "Safe task runs with receipts and runtime auto-detection".into(),
         },
         SourceFeature {
-            source: "pi-teams",
+            source: "pi-teams".into(),
             area: CapabilityArea::Teaming,
-            feature: "Parallel specialist agents with a shared task board",
-            outcome: "Lead + teammate coordination in one workspace",
+            feature: "Parallel specialist agents with a shared task board".into(),
+            outcome: "Lead + teammate coordination in one workspace".into(),
         },
         SourceFeature {
-            source: "pi-model-switch",
+            source: "pi-model-switch".into(),
             area: CapabilityArea::Models,
-            feature: "Autonomous model search and switching",
-            outcome: "Dynamic routing between cheap, fast, and deep models",
+            feature: "Autonomous model search and switching".into(),
+            outcome: "Dynamic routing between cheap, fast, and deep models".into(),
         },
         SourceFeature {
-            source: "oh-pi-ant-colony",
+            source: "oh-pi-ant-colony".into(),
             area: CapabilityArea::Swarm,
-            feature: "Pheromone-based adaptive concurrency",
-            outcome: "Scouting, worker execution, and review waves",
+            feature: "Pheromone-based adaptive concurrency".into(),
+            outcome: "Scouting, worker execution, and review waves".into(),
         },
         SourceFeature {
-            source: "pi-nvidia-nim",
+            source: "pi-nvidia-nim".into(),
             area: CapabilityArea::Models,
-            feature: "Custom NVIDIA NIM provider with reasoning controls",
-            outcome: "NIM catalog surfaced as first-class model options",
+            feature: "Custom NVIDIA NIM provider with reasoning controls".into(),
+            outcome: "NIM catalog surfaced as first-class model options".into(),
         },
         SourceFeature {
-            source: "pi-governance",
+            source: "pi-governance".into(),
             area: CapabilityArea::Governance,
-            feature: "RBAC, DLP, audit logging, and HITL",
-            outcome: "Policy-aware actions with approval checkpoints",
+            feature: "RBAC, DLP, audit logging, and HITL".into(),
+            outcome: "Policy-aware actions with approval checkpoints".into(),
         },
         SourceFeature {
-            source: "pi-ask-user",
+            source: "pi-ask-user".into(),
             area: CapabilityArea::HumanLoop,
-            feature: "Interactive structured decisions",
-            outcome: "User approval prompts for ambiguous or risky steps",
+            feature: "Interactive structured decisions".into(),
+            outcome: "User approval prompts for ambiguous or risky steps".into(),
         },
         SourceFeature {
-            source: "pi-brain",
+            source: "pi-brain".into(),
             area: CapabilityArea::Memory,
-            feature: "Versioned memory branches and merges",
-            outcome: "Persistent context and milestone snapshots",
+            feature: "Versioned memory branches and merges".into(),
+            outcome: "Persistent context and milestone snapshots".into(),
         },
         SourceFeature {
-            source: "pi-superpowers-plus",
+            source: "pi-superpowers-plus".into(),
             area: CapabilityArea::Workflow,
-            feature: "Workflow/TDD enforcement and subagent support",
-            outcome: "Guided execution phases and verification gates",
+            feature: "Workflow/TDD enforcement and subagent support".into(),
+            outcome: "Guided execution phases and verification gates".into(),
         },
         SourceFeature {
-            source: "opencode-chamber",
+            source: "opencode-chamber".into(),
             area: CapabilityArea::Interface,
-            feature: "Web/desktop coding workspace",
-            outcome: "Single browser cockpit for chat, diffs, plans, and tasks",
+            feature: "Web/desktop coding workspace".into(),
+            outcome: "Single browser cockpit for chat, diffs, plans, and tasks".into(),
         },
         SourceFeature {
-            source: "pi coding agent",
+            source: "pi coding agent".into(),
             area: CapabilityArea::CodingHarness,
-            feature: "Minimal extensible coding harness",
-            outcome: "Composable tool foundation for the whole mono app",
+            feature: "Minimal extensible coding harness".into(),
+            outcome: "Composable tool foundation for the whole mono app".into(),
         },
     ]
 }
@@ -296,22 +584,30 @@ mod tests {
         assert_eq!(scenario.completed_tasks(), 2);
         assert_eq!(scenario.active_agents(), 6);
         assert_eq!(scenario.governance_rules(), 4);
+        assert_eq!(scenario.pending_approvals(), 1);
     }
 
     #[test]
-    fn source_catalog_covers_all_capability_buckets() {
-        let features = source_features();
-        assert!(features
-            .iter()
-            .any(|feature| feature.area == CapabilityArea::Sandbox));
-        assert!(features
-            .iter()
-            .any(|feature| feature.area == CapabilityArea::Teaming));
-        assert!(features
-            .iter()
-            .any(|feature| feature.area == CapabilityArea::Governance));
-        assert!(features
-            .iter()
-            .any(|feature| feature.area == CapabilityArea::Interface));
+    fn workflow_actions_mutate_shared_state() {
+        let mut scenario = sample_scenario();
+        scenario.create_task("Refactor Yew app", "Builder", "Interface");
+        scenario.assign_task(2, "Builder");
+        scenario.update_task_status(2, TaskStatus::Review);
+        scenario.switch_model("openai", "gpt-5");
+        scenario.open_approval_request("Approve release", "Lead", "Ship the refactor.");
+        scenario.decide_approval(1, true);
+        scenario.append_memory("release/ui", MemoryKind::Commit, "Captured final UI state.");
+        scenario.stop_swarm_run();
+
+        assert_eq!(scenario.tasks.len(), 6);
+        assert_eq!(scenario.tasks[1].owner, "Builder");
+        assert_eq!(scenario.tasks[1].status, TaskStatus::Review);
+        assert_eq!(scenario.active_provider, "openai");
+        assert_eq!(scenario.active_model, "gpt-5");
+        assert_eq!(scenario.approvals.len(), 2);
+        assert_eq!(scenario.approvals[0].status, ApprovalStatus::Accepted);
+        assert_eq!(scenario.memory.len(), 4);
+        assert_eq!(scenario.swarm_status, SwarmStatus::Stopped);
+        assert!(scenario.audit_log.len() >= 8);
     }
 }

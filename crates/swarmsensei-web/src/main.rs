@@ -1,45 +1,71 @@
-use swarmsensei_core::{sample_scenario, CapabilityArea, SourceFeature, TaskStatus, ThinkingLevel};
-use web_sys::HtmlSelectElement;
+mod components;
+
+use components::agent_board::AgentBoard;
+use components::decision_gate::DecisionGate;
+use components::governance_panel::GovernancePanel;
+use components::memory_graph::MemoryGraph;
+use components::model_router::ModelRouter;
+use components::task_board::TaskBoard;
+use std::rc::Rc;
+use swarmsensei_core::{sample_scenario, CapabilityArea, MemoryKind, Scenario, TaskStatus};
 use yew::prelude::*;
 
-fn badge_class(status: TaskStatus) -> &'static str {
-    match status {
-        TaskStatus::Todo => "badge slate",
-        TaskStatus::InProgress => "badge blue",
-        TaskStatus::Review => "badge amber",
-        TaskStatus::Blocked => "badge red",
-        TaskStatus::Done => "badge green",
-    }
+#[derive(Clone, PartialEq)]
+struct AppState {
+    scenario: Scenario,
 }
 
-fn thinking_chip(level: ThinkingLevel) -> &'static str {
-    match level {
-        ThinkingLevel::Off => "chip off",
-        ThinkingLevel::Low => "chip low",
-        ThinkingLevel::Medium => "chip medium",
-        ThinkingLevel::High => "chip high",
+#[derive(Clone, PartialEq)]
+enum AppAction {
+    CreateTask(String, String, String),
+    AssignTask(usize, String),
+    ChangeTaskStatus(usize, TaskStatus),
+    SwitchModel(String, String),
+    OpenApproval(String, String, String),
+    DecideApproval(usize, bool),
+    AppendMemory(String, MemoryKind, String),
+    StartSwarmRun,
+    StopSwarmRun,
+}
+
+impl Reducible for AppState {
+    type Action = AppAction;
+
+    fn reduce(self: Rc<Self>, action: Self::Action) -> Rc<Self> {
+        let mut next = (*self).clone();
+        match action {
+            AppAction::CreateTask(title, owner, lane) => {
+                next.scenario.create_task(title, owner, lane)
+            }
+            AppAction::AssignTask(id, owner) => next.scenario.assign_task(id, owner),
+            AppAction::ChangeTaskStatus(id, status) => next.scenario.update_task_status(id, status),
+            AppAction::SwitchModel(provider, model) => next.scenario.switch_model(provider, model),
+            AppAction::OpenApproval(title, requested_by, summary) => next
+                .scenario
+                .open_approval_request(title, requested_by, summary),
+            AppAction::DecideApproval(id, accept) => next.scenario.decide_approval(id, accept),
+            AppAction::AppendMemory(branch, kind, summary) => {
+                next.scenario.append_memory(branch, kind, summary)
+            }
+            AppAction::StartSwarmRun => next.scenario.start_swarm_run(),
+            AppAction::StopSwarmRun => next.scenario.stop_swarm_run(),
+        }
+        Rc::new(next)
     }
 }
 
 #[function_component(App)]
 fn app() -> Html {
-    let scenario = use_state(sample_scenario);
-    let lane_filter = use_state(|| "All".to_string());
+    let state = use_reducer(|| AppState {
+        scenario: sample_scenario(),
+    });
+    let scenario = &state.scenario;
     let active_area = use_state(|| CapabilityArea::Sandbox);
 
-    let on_lane_change = {
-        let lane_filter = lane_filter.clone();
-        Callback::from(move |event: Event| {
-            let input: HtmlSelectElement = event.target_unchecked_into();
-            lane_filter.set(input.value());
-        })
-    };
-
-    let filtered_tasks = scenario
-        .tasks
+    let owners = scenario
+        .agents
         .iter()
-        .filter(|task| lane_filter.as_str() == "All" || task.lane == lane_filter.as_str())
-        .cloned()
+        .map(|agent| agent.name.clone())
         .collect::<Vec<_>>();
 
     let active_sources = scenario
@@ -49,158 +75,145 @@ fn app() -> Html {
         .cloned()
         .collect::<Vec<_>>();
 
+    let on_create_task = {
+        let state = state.clone();
+        Callback::from(move |(title, owner, lane)| {
+            state.dispatch(AppAction::CreateTask(title, owner, lane))
+        })
+    };
+    let on_assign_task = {
+        let state = state.clone();
+        Callback::from(move |(id, owner)| state.dispatch(AppAction::AssignTask(id, owner)))
+    };
+    let on_change_status = {
+        let state = state.clone();
+        Callback::from(move |(id, status)| state.dispatch(AppAction::ChangeTaskStatus(id, status)))
+    };
+    let on_switch_model = {
+        let state = state.clone();
+        Callback::from(move |(provider, model)| {
+            state.dispatch(AppAction::SwitchModel(provider, model))
+        })
+    };
+    let on_open_approval = {
+        let state = state.clone();
+        Callback::from(move |(title, requested_by, summary)| {
+            state.dispatch(AppAction::OpenApproval(title, requested_by, summary))
+        })
+    };
+    let on_decide_approval = {
+        let state = state.clone();
+        Callback::from(move |(id, accept)| state.dispatch(AppAction::DecideApproval(id, accept)))
+    };
+    let on_append_memory = {
+        let state = state.clone();
+        Callback::from(move |(branch, kind, summary)| {
+            state.dispatch(AppAction::AppendMemory(branch, kind, summary))
+        })
+    };
+    let on_start_swarm = {
+        let state = state.clone();
+        Callback::from(move |_| state.dispatch(AppAction::StartSwarmRun))
+    };
+    let on_stop_swarm = {
+        let state = state.clone();
+        Callback::from(move |_| state.dispatch(AppAction::StopSwarmRun))
+    };
+
     html! {
         <div class="app-shell">
             <style>{CSS}</style>
             <header class="hero">
                 <div>
                     <p class="eyebrow">{"Rust + WASM + shared orchestration core"}</p>
-                    <h1>{scenario.headline}</h1>
-                    <p class="lede">{scenario.summary}</p>
+                    <h1>{scenario.headline.clone()}</h1>
+                    <p class="lede">{scenario.summary.clone()}</p>
                 </div>
                 <div class="hero-card">
-                    <p class="muted">{"Active model"}</p>
-                    <strong>{scenario.active_model}</strong>
-                    <p class="muted top-gap">{"Execution mode"}</p>
-                    <strong>{scenario.team_mode}</strong>
+                    <p class="muted">{"Active route"}</p>
+                    <strong>{format!("{} / {}", scenario.active_provider, scenario.active_model)}</strong>
+                    <p class="muted top-gap">{"Swarm mode"}</p>
+                    <strong>{scenario.team_mode.clone()}</strong>
                 </div>
             </header>
 
             <section class="stats-grid">
                 <StatCard title="Feature sources" value={scenario.sources.len().to_string()} detail="Integrated upstream inspirations" />
                 <StatCard title="Active agents" value={scenario.active_agents().to_string()} detail="Lead, scout, builders, reviewers" />
-                <StatCard title="Completed tasks" value={scenario.completed_tasks().to_string()} detail="Board progress from the shared core" />
-                <StatCard title="Governance rules" value={scenario.governance_rules().to_string()} detail="RBAC, DLP, approvals, verification" />
+                <StatCard title="Completed tasks" value={scenario.completed_tasks().to_string()} detail="Live progress from shared state" />
+                <StatCard title="Pending approvals" value={scenario.pending_approvals().to_string()} detail="Human checkpoints waiting for action" />
             </section>
 
             <section class="panel-grid">
-                <div class="panel tall">
-                    <div class="panel-head">
-                        <h2>{"Agent team board"}</h2>
-                        <span class="muted">{"pi-teams + ant-colony + superpowers"}</span>
-                    </div>
-                    <div class="agent-list">
-                        {for scenario.agents.iter().map(|agent| html! {
-                            <article class="agent-card">
-                                <div>
-                                    <h3>{agent.name}</h3>
-                                    <p>{agent.specialty}</p>
-                                </div>
-                                <div class="agent-meta">
-                                    <span class={thinking_chip(agent.thinking)}>{agent.thinking.label()}</span>
-                                    <span class="model-pill">{agent.model}</span>
-                                    <span class="muted">{agent.status}</span>
-                                </div>
-                            </article>
-                        })}
-                    </div>
-                </div>
-
-                <div class="panel tall">
-                    <div class="panel-head split">
-                        <div>
-                            <h2>{"Task lanes"}</h2>
-                            <span class="muted">{"Shared backlog with approval-aware statuses"}</span>
-                        </div>
-                        <label class="select-wrap">
-                            <span>{"Lane"}</span>
-                            <select onchange={on_lane_change}>
-                                <option selected={lane_filter.as_str()=="All"}>{"All"}</option>
-                                <option selected={lane_filter.as_str()=="Sandbox"}>{"Sandbox"}</option>
-                                <option selected={lane_filter.as_str()=="Models"}>{"Models"}</option>
-                                <option selected={lane_filter.as_str()=="Swarm"}>{"Swarm"}</option>
-                                <option selected={lane_filter.as_str()=="Governance"}>{"Governance"}</option>
-                                <option selected={lane_filter.as_str()=="Memory"}>{"Memory"}</option>
-                            </select>
-                        </label>
-                    </div>
-                    <div class="task-list">
-                        {for filtered_tasks.iter().map(|task| html! {
-                            <article class="task-row">
-                                <div>
-                                    <h3>{task.title}</h3>
-                                    <p class="muted">{format!("Owner: {} · Lane: {}", task.owner, task.lane)}</p>
-                                </div>
-                                <span class={badge_class(task.status)}>{task.status.label()}</span>
-                            </article>
-                        })}
-                    </div>
-                </div>
+                <AgentBoard
+                    agents={scenario.agents.clone()}
+                    swarm_status={scenario.swarm_status}
+                    on_start={on_start_swarm}
+                    on_stop={on_stop_swarm}
+                />
+                <TaskBoard
+                    tasks={scenario.tasks.clone()}
+                    owners={owners.clone()}
+                    on_create_task={on_create_task}
+                    on_assign_task={on_assign_task}
+                    on_change_status={on_change_status}
+                />
             </section>
 
             <section class="panel-grid">
-                <div class="panel">
-                    <div class="panel-head">
+                <ModelRouter
+                    active_provider={scenario.active_provider.clone()}
+                    active_model={scenario.active_model.clone()}
+                    catalog={scenario.model_catalog.clone()}
+                    on_switch_model={on_switch_model}
+                />
+                <DecisionGate approvals={scenario.approvals.clone()} on_decide={on_decide_approval} />
+            </section>
+
+            <section class="panel-grid">
+                <GovernancePanel
+                    rules={scenario.rules.clone()}
+                    approvals={scenario.approvals.clone()}
+                    audit_log={scenario.audit_log.clone()}
+                    on_open_approval={on_open_approval}
+                />
+                <MemoryGraph memory={scenario.memory.clone()} on_append_memory={on_append_memory} />
+            </section>
+
+            <section class="panel">
+                <div class="panel-head">
+                    <div>
                         <h2>{"Capability map"}</h2>
-                        <span class="muted">{"Select a capability family to see merged source ideas"}</span>
-                    </div>
-                    <div class="cap-grid">
-                        {for [
-                            CapabilityArea::Sandbox,
-                            CapabilityArea::Teaming,
-                            CapabilityArea::Models,
-                            CapabilityArea::Swarm,
-                            CapabilityArea::Governance,
-                            CapabilityArea::HumanLoop,
-                            CapabilityArea::Memory,
-                            CapabilityArea::Workflow,
-                            CapabilityArea::Interface,
-                            CapabilityArea::CodingHarness,
-                        ].into_iter().map(|area| {
-                            let active_area = active_area.clone();
-                            let is_active = *active_area == area;
-                            let onclick_handle = active_area.clone();
-                            let onclick = Callback::from(move |_| onclick_handle.set(area));
-                            html! {
-                                <button class={classes!("cap-button", is_active.then_some("active"))} {onclick}>
-                                    {area.label()}
-                                </button>
-                            }
-                        })}
-                    </div>
-                    <div class="source-list">
-                        {for active_sources.iter().map(render_source)}
+                        <span class="muted">{"Select a capability family to inspect live source inspirations"}</span>
                     </div>
                 </div>
-
-                <div class="panel">
-                    <div class="panel-head">
-                        <h2>{"Governance & memory"}</h2>
-                        <span class="muted">{"pi-governance + pi-ask-user + pi-brain"}</span>
-                    </div>
-                    <div class="subsection">
-                        <h3>{"Policy rules"}</h3>
-                        {for scenario.rules.iter().map(|rule| html! {
-                            <div class="rule-row">
-                                <strong>{rule.name}</strong>
-                                <p>{format!("{} — {}", rule.scope, rule.effect)}</p>
-                            </div>
-                        })}
-                    </div>
-                    <div class="subsection">
-                        <h3>{"Memory graph"}</h3>
-                        {for scenario.memory.iter().map(|entry| html! {
-                            <div class="memory-row">
-                                <span class="memory-kind">{entry.kind}</span>
-                                <div>
-                                    <strong>{entry.branch}</strong>
-                                    <p>{entry.summary}</p>
-                                </div>
-                            </div>
-                        })}
-                    </div>
+                <div class="cap-grid">
+                    {for CapabilityArea::ALL.into_iter().map(|area| {
+                        let active_area = active_area.clone();
+                        let is_active = *active_area == area;
+                        let onclick_handle = active_area.clone();
+                        let onclick = Callback::from(move |_| onclick_handle.set(area));
+                        html! {
+                            <button class={classes!("cap-button", is_active.then_some("active"))} {onclick}>
+                                {area.label()}
+                            </button>
+                        }
+                    })}
+                </div>
+                <div class="source-list">
+                    {for active_sources.iter().map(render_source)}
                 </div>
             </section>
         </div>
     }
 }
 
-fn render_source(source: &SourceFeature) -> Html {
+fn render_source(source: &swarmsensei_core::SourceFeature) -> Html {
     html! {
         <article class="source-card">
-            <p class="eyebrow small">{source.source}</p>
-            <h3>{source.feature}</h3>
-            <p>{source.outcome}</p>
+            <p class="eyebrow small">{source.source.clone()}</p>
+            <h3>{source.feature.clone()}</h3>
+            <p>{source.outcome.clone()}</p>
         </article>
     }
 }
@@ -234,6 +247,9 @@ body {
   margin: 0;
   background: radial-gradient(circle at top, #132846, #08111f 55%);
 }
+button, input, select, textarea {
+  font: inherit;
+}
 .app-shell {
   max-width: 1280px;
   margin: 0 auto;
@@ -252,14 +268,12 @@ body {
 .lede { font-size: 1.1rem; max-width: 70ch; color: #b6c3d9; }
 .eyebrow { text-transform: uppercase; letter-spacing: 0.12em; color: #7ad7ff; font-size: 0.78rem; }
 .eyebrow.small { color: #96f0c4; }
-.hero-card, .panel, .stat-card, .source-card, .agent-card, .task-row, .rule-row, .memory-row {
+.hero-card, .panel, .stat-card, .source-card, .agent-card, .task-row, .rule-row, .memory-row, .decision-card {
   border: 1px solid rgba(129, 160, 255, 0.18);
   background: rgba(9, 18, 35, 0.78);
   backdrop-filter: blur(16px);
   border-radius: 18px;
   box-shadow: 0 16px 40px rgba(0,0,0,0.24);
-}
-.hero-card, .panel, .stat-card, .source-card, .agent-card, .task-row, .rule-row, .memory-row {
   padding: 18px;
 }
 .top-gap { margin-top: 18px; }
@@ -270,10 +284,40 @@ body {
 .stat-card h2 { font-size: 2rem; margin: 8px 0; }
 .panel-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 24px; }
 .panel.tall { min-height: 360px; }
-.panel-head, .split { display: flex; justify-content: space-between; gap: 16px; align-items: center; }
-.agent-list, .task-list, .source-list, .subsection { display: grid; gap: 12px; }
-.agent-card, .task-row, .rule-row, .memory-row { display: flex; justify-content: space-between; gap: 16px; align-items: center; }
-.agent-meta { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; align-items: center; }
+.panel-head, .split, .inline-actions, .task-topline {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+}
+.inline-actions { flex-wrap: wrap; }
+.agent-list, .task-list, .source-list, .subsection, .audit-list {
+  display: grid;
+  gap: 12px;
+}
+.agent-card, .memory-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+}
+.agent-meta, .inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  align-items: center;
+}
+.inline-form.two-up > * { flex: 1 1 220px; }
+.compose-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr auto;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.compose-grid.single {
+  grid-template-columns: 1fr;
+}
 .model-pill, .memory-kind, .chip, .badge {
   border-radius: 999px;
   padding: 6px 10px;
@@ -291,12 +335,27 @@ body {
 .badge.red { background: #7d2830; }
 .badge.green { background: #256443; }
 .select-wrap { display: grid; gap: 6px; font-size: 0.88rem; }
-select {
+select, .text-input, .text-area {
   background: #10192d;
   color: #e8edf7;
   border: 1px solid rgba(129, 160, 255, 0.25);
   border-radius: 10px;
-  padding: 8px 12px;
+  padding: 10px 12px;
+}
+.text-area {
+  min-height: 88px;
+  resize: vertical;
+}
+.button {
+  border: 0;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #1565c0, #26a69a);
+  color: white;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+.button.subtle {
+  background: #22314f;
 }
 .cap-grid {
   display: flex;
@@ -316,11 +375,17 @@ select {
   background: linear-gradient(135deg, #1565c0, #26a69a);
   border-color: transparent;
 }
-.source-card h3, .task-row h3, .agent-card h3 { margin: 0 0 6px; }
+.source-card h3, .task-row h3, .agent-card h3, .decision-card h3 { margin: 0 0 6px; }
+.source-card.compact .badge { margin-top: 8px; display: inline-flex; }
+.stacked, .stacked-card {
+  display: grid;
+  gap: 12px;
+}
+.grow { width: 100%; }
 .muted { color: #9ca9c0; }
 .memory-kind { background: #18294e; color: #91c1ff; text-transform: uppercase; }
 @media (max-width: 980px) {
-  .hero, .stats-grid, .panel-grid { grid-template-columns: 1fr; }
+  .hero, .stats-grid, .panel-grid, .compose-grid { grid-template-columns: 1fr; }
 }
 "#;
 
