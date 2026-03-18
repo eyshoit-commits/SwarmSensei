@@ -1,0 +1,10 @@
+[package]
+name = "swarmsensei-web"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+swarmsensei-core = { path = "../swarmsensei-core" }
+yew.workspace = true
+web-sys.workspace = true
