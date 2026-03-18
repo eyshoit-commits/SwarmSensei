@@ -59,6 +59,8 @@ pub enum CapabilityArea {
     HumanLoop,
     Memory,
     Workflow,
+    Interface,
+    CodingHarness,
 }
 
 impl CapabilityArea {
@@ -72,6 +74,8 @@ impl CapabilityArea {
             Self::HumanLoop => "Ask-user decisions",
             Self::Memory => "Versioned memory",
             Self::Workflow => "Workflow enforcement",
+            Self::Interface => "Rich web workspace",
+            Self::CodingHarness => "Core coding harness",
         }
     }
 }
