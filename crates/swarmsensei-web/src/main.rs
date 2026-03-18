@@ -67,17 +67,17 @@ fn app() -> Html {
             </header>
 
             <section class="stats-grid">
-                <StatCard title="Feature sources" value={scenario.sources.len().to_string()} detail="Integrated upstream inspirations" />
+                <StatCard title="Feature modules" value={scenario.sources.len().to_string()} detail="SwarmSensei capabilities working together" />
                 <StatCard title="Active agents" value={scenario.active_agents().to_string()} detail="Lead, scout, builders, reviewers" />
-                <StatCard title="Completed tasks" value={scenario.completed_tasks().to_string()} detail="Board progress from the shared core" />
-                <StatCard title="Governance rules" value={scenario.governance_rules().to_string()} detail="RBAC, DLP, approvals, verification" />
+                <StatCard title="Completed tasks" value={scenario.completed_tasks().to_string()} detail="Board progress from the shared orchestration core" />
+                <StatCard title="Policy rules" value={scenario.governance_rules().to_string()} detail="RBAC, DLP, approvals, verification" />
             </section>
 
             <section class="panel-grid">
                 <div class="panel tall">
                     <div class="panel-head">
-                        <h2>{"Agent team board"}</h2>
-                        <span class="muted">{"pi-teams + ant-colony + superpowers"}</span>
+                        <h2>{"Team Mesh board"}</h2>
+                        <span class="muted">{"Coordinated specialists across Swarm Lanes"}</span>
                     </div>
                     <div class="agent-list">
                         {for scenario.agents.iter().map(|agent| html! {
@@ -100,17 +100,17 @@ fn app() -> Html {
                     <div class="panel-head split">
                         <div>
                             <h2>{"Task lanes"}</h2>
-                            <span class="muted">{"Shared backlog with approval-aware statuses"}</span>
+                            <span class="muted">{"Shared backlog with Policy Guard-aware statuses"}</span>
                         </div>
                         <label class="select-wrap">
                             <span>{"Lane"}</span>
                             <select onchange={on_lane_change}>
                                 <option selected={lane_filter.as_str()=="All"}>{"All"}</option>
-                                <option selected={lane_filter.as_str()=="Sandbox"}>{"Sandbox"}</option>
-                                <option selected={lane_filter.as_str()=="Models"}>{"Models"}</option>
-                                <option selected={lane_filter.as_str()=="Swarm"}>{"Swarm"}</option>
-                                <option selected={lane_filter.as_str()=="Governance"}>{"Governance"}</option>
-                                <option selected={lane_filter.as_str()=="Memory"}>{"Memory"}</option>
+                                <option selected={lane_filter.as_str()=="Execution Kernel"}>{"Execution Kernel"}</option>
+                                <option selected={lane_filter.as_str()=="Model Router"}>{"Model Router"}</option>
+                                <option selected={lane_filter.as_str()=="Swarm Lanes"}>{"Swarm Lanes"}</option>
+                                <option selected={lane_filter.as_str()=="Policy Guard"}>{"Policy Guard"}</option>
+                                <option selected={lane_filter.as_str()=="Memory Graph"}>{"Memory Graph"}</option>
                             </select>
                         </label>
                     </div>
@@ -132,7 +132,7 @@ fn app() -> Html {
                 <div class="panel">
                     <div class="panel-head">
                         <h2>{"Capability map"}</h2>
-                        <span class="muted">{"Select a capability family to see merged source ideas"}</span>
+                        <span class="muted">{"Select a capability family to explore the SwarmSensei design"}</span>
                     </div>
                     <div class="cap-grid">
                         {for [
@@ -165,8 +165,8 @@ fn app() -> Html {
 
                 <div class="panel">
                     <div class="panel-head">
-                        <h2>{"Governance & memory"}</h2>
-                        <span class="muted">{"pi-governance + pi-ask-user + pi-brain"}</span>
+                        <h2>{"Policy Guard & Memory Graph"}</h2>
+                        <span class="muted">{"Governance, approvals, and durable swarm context"}</span>
                     </div>
                     <div class="subsection">
                         <h3>{"Policy rules"}</h3>
@@ -178,7 +178,7 @@ fn app() -> Html {
                         })}
                     </div>
                     <div class="subsection">
-                        <h3>{"Memory graph"}</h3>
+                        <h3>{"Memory Graph"}</h3>
                         {for scenario.memory.iter().map(|entry| html! {
                             <div class="memory-row">
                                 <span class="memory-kind">{entry.kind}</span>
