@@ -1,29 +1,46 @@
 # SwarmSensei
 
-## Project Overview
-SwarmSensei is a Rust/WASM project aimed at ...
+SwarmSensei is a mono Rust/WASM control room that synthesizes the ideas from agentkernel, pi-teams, pi-model-switch, oh-pi-ant-colony, pi-nvidia-nim, pi-governance, pi-ask-user, pi-brain, pi-superpowers-plus, OpenChamber, and the Pi coding agent into one browser-first application.
 
-## Phases
-1. **Phase 1**: Initial setup and structure
-2. **Phase 2**: Core functionality development
-3. **Phase 3**: Testing and optimization
-4. **Phase 4**: Deployment and maintenance
+## What is included?
 
-## Getting Started
-To get started with SwarmSensei:
-1. Clone the repository:
-   ```sh
-   git clone https://github.com/eyshoit-commits/SwarmSensei.git
-   ```
-2. Navigate to the directory:
-   ```sh
-   cd SwarmSensei
-   ```
-3. Install dependencies and build:
-   ```sh
-   cargo build
-   ```
-4. Run the project:
-   ```sh
-   cargo run
-   ```
+- **Shared Rust domain core** for agents, tasks, governance rules, source capability mapping, and memory entries.
+- **Yew/WASM frontend** that renders a control room for the integrated swarm workflow.
+- **Feature synthesis dashboard** showing how the upstream tools map into a single architecture.
+
+## Workspace layout
+
+```text
+.
+├── crates/
+│   ├── swarmsensei-core/   # Shared orchestration models + tests
+│   └── swarmsensei-web/    # Yew/WASM UI
+├── Cargo.toml
+├── Trunk.toml
+└── index.html
+```
+
+## Run locally
+
+```bash
+cargo test
+cargo check
+cargo install trunk
+trunk serve --open
+```
+
+## Integrated capability map
+
+| Upstream inspiration | SwarmSensei interpretation |
+| --- | --- |
+| agentkernel | sandboxed execution plane |
+| pi-teams | agent roster + shared task board |
+| pi-model-switch | model routing controls |
+| oh-pi-ant-colony | adaptive swarm lanes |
+| pi-nvidia-nim | NIM-capable model catalog |
+| pi-governance | RBAC + DLP + approvals |
+| pi-ask-user | human decision checkpoints |
+| pi-brain | branchable memory timeline |
+| pi-superpowers-plus | workflow enforcement |
+| OpenChamber | visual web workspace |
+| Pi coding agent | extensible harness model |
